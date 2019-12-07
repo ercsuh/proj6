@@ -15,6 +15,8 @@ from TSPClasses import *
 import heapq
 import itertools
 import math
+import operator
+import pandas as pd
 import copy
 
 
@@ -148,5 +150,131 @@ class TSPSolver:
 	'''
 		
 	def fancy( self,time_allowance=60.0 ):
-		pass
-	
+		results = {}
+
+		start_time = time.time()
+		bssf = self.geneticAlgorithm(100, 20, 0.01, 500)
+		end_time = time.time()
+
+		results['cost'] = bssf.cost
+		results['time'] = end_time - start_time
+		results['count'] = None
+		results['soln'] = bssf
+		results['max'] = None
+		results['total'] = None
+		results['pruned'] = None
+		return results
+
+
+	def geneticAlgorithm(self, popSize, eliteSize, mutationRate, generations):
+		population = self.initialPopulation(popSize)
+
+		for i in range(0, generations):
+			population = self.nextGeneration(population, eliteSize, mutationRate)
+
+		bestRouteIndex = self.rankRoutes(population)[0][0]
+		return population[bestRouteIndex]
+
+
+	def nextGeneration(self, currentGen, eliteSize, mutationRate):
+		popRanked = self.rankRoutes(currentGen)
+		selectionResults = self.selection(popRanked, eliteSize)
+		matingPool = self.matingPool(currentGen, selectionResults)
+		children = self.breedPopulation(matingPool, eliteSize)
+		nextGeneration = self.mutatePopulation(children, mutationRate)
+		return nextGeneration
+
+	def initialPopulation(self, popSize):
+		population = []
+
+		for i in range(popSize):
+			results = self.defaultRandomTour()
+			population.append(results['soln'])
+		return population
+
+	def getFitness(self, individual):
+		return 1000.0 / float(individual.cost)
+
+	def rankRoutes(self, population):
+		fitnessResults = {}
+		for i in range(len(population)):
+			fitnessResults[i] = self.getFitness(population[i])
+		return sorted(fitnessResults.items(), key=operator.itemgetter(1), reverse=True)
+
+	def selection(self, popRanked, eliteSize):
+		selectionResults = []
+		# I have doubts about the way they do this. It seems like, despite the complicated
+		# stuff they do, that the non-elite routes end up being selected completely randomly
+		df = pd.DataFrame(np.array(popRanked), columns=["Index", "Fitness"])
+		df['cum_sum'] = df.Fitness.cumsum()
+		df['cum_perc'] = 100 * df.cum_sum / df.Fitness.sum()
+
+		for i in range(0, eliteSize):
+			selectionResults.append(popRanked[i][0])
+		for i in range(0, len(popRanked) - eliteSize):
+			pick = 100 * random.random()
+			for i in range(0, len(popRanked)):
+				if pick <= df.iat[i, 3]:
+					selectionResults.append(popRanked[i][0])
+					break
+		return selectionResults
+
+	def matingPool(self, population, selectionResults):
+		matingPool = []
+		for i in range(len(selectionResults)):
+			index = selectionResults[i]
+			matingPool.append(population[index])
+		return matingPool
+
+	def breed(self, parent1, parent2):
+		child = []
+		childP1 = []
+		childP2 = []
+
+		geneA = int(random.random() * len(parent1.route))
+		geneB = int(random.random() * len(parent2.route))
+
+		startGene = min(geneA, geneB)
+		endGene = max(geneA, geneB)
+
+		for i in range(startGene, endGene):
+			childP1.append(parent1.route[i])
+
+		childP2 = [item for item in parent2.route if item not in childP1]
+
+		child = childP1 + childP2
+		return TSPSolution(child)
+
+	def breedPopulation(self, matingpool, eliteSize):
+		children = []
+		length = len(matingpool) - eliteSize
+		pool = random.sample(matingpool, len(matingpool))
+
+		for i in range(0, eliteSize):
+			children.append(matingpool[i])
+
+		for i in range(0, length):
+			child = self.breed(pool[i], pool[len(matingpool) - i - 1])
+			children.append(child)
+		return children
+
+	def mutate(self, individual, mutationRate):
+		for swapped in range(len(individual.route)):
+			if (random.random() < mutationRate):
+				swapWith = int(random.random() * len(individual.route))
+
+				city1 = individual.route[swapped]
+				city2 = individual.route[swapWith]
+
+				individual.route[swapped] = city2
+				individual.route[swapped] = city1
+				individual.cost = individual._costOfRoute()
+		return individual
+
+	def mutatePopulation(self, population, mutationRate):
+		mutatedPop = []
+
+		for ind in range(len(population)):
+			mutatedInd = self.mutate(population[ind], mutationRate)
+			mutatedPop.append(mutatedInd)
+		return mutatedPop
