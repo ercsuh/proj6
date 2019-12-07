@@ -148,33 +148,38 @@ class TSPSolver:
 		best solution found.  You may use the other three field however you like.
 		algorithm</returns> 
 	'''
-		
+	populationSize = 100
+	eliteSize = 20
+	mutationRate = 0.01
+	generations = 2000
+
 	def fancy( self,time_allowance=60.0 ):
 		results = {}
+		bssf = None
+		generationCount = 0
 
 		start_time = time.time()
-		bssf = self.geneticAlgorithm(100, 20, 0.01, 500)
+		population = self.initialPopulation(self.populationSize)
+
+		for i in range(0, self.generations):
+			population = self.nextGeneration(population, self.eliteSize, self.mutationRate)
+			generationCount += 1
+			if time.time() - start_time > time_allowance:
+				break
+
 		end_time = time.time()
+
+		bssfIndex = self.rankRoutes(population)[0][0]
+		bssf = population[bssfIndex]
 
 		results['cost'] = bssf.cost
 		results['time'] = end_time - start_time
-		results['count'] = None
+		results['count'] = generationCount
 		results['soln'] = bssf
 		results['max'] = None
 		results['total'] = None
 		results['pruned'] = None
 		return results
-
-
-	def geneticAlgorithm(self, popSize, eliteSize, mutationRate, generations):
-		population = self.initialPopulation(popSize)
-
-		for i in range(0, generations):
-			population = self.nextGeneration(population, eliteSize, mutationRate)
-
-		bestRouteIndex = self.rankRoutes(population)[0][0]
-		return population[bestRouteIndex]
-
 
 	def nextGeneration(self, currentGen, eliteSize, mutationRate):
 		popRanked = self.rankRoutes(currentGen)
