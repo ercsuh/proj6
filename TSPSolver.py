@@ -24,8 +24,8 @@ class TSPSolver:
 	def __init__( self, gui_view ):
 		self.populationSize = 100
 		self.eliteSize = 20
-		self.mutationRate = 0.01
-		self.generations = 2000
+		self.mutationRate = 0.02
+		self.generations = 5000
 		self.population = []
 		self._scenario = None
 
@@ -284,15 +284,16 @@ class TSPSolver:
 		child = childP1 + childP2
 		return TSPSolution(child)
 
-	def mutatePopulation(self, population):
+	def mutatePopulation(self, children):
 		"""
 		Mutates throughout new population.
 		:return: mutated population
 		"""
-		mutatedPop = []
+		# Don't mutate the best route
+		mutatedPop = [children[0]]
 
-		for ind in range(len(population)):
-			mutatedInd = self.mutate(population[ind])
+		for ind in range(1, len(children)):
+			mutatedInd = self.mutate(children[ind])
 			mutatedPop.append(mutatedInd)
 		return mutatedPop
 
