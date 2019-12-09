@@ -155,16 +155,19 @@ class TSPSolver:
 	'''
 
 	def fancy( self,time_allowance=60.0 ):
+		"""
+		Implements a genetic algorithm to find a TSP solution.
+		"""
 		results = {}
 		bssf = None
-		generationCount = 0
+		genCount = 0
 
 		start_time = time.time()
 		self.population = self.initialPopulation()
 
 		for i in range(self.generations):
 			self.population = self.nextGeneration()
-			generationCount += 1
+			genCount += 1
 			if time.time() - start_time > time_allowance:
 				break
 
@@ -175,21 +178,18 @@ class TSPSolver:
 
 		results['cost'] = bssf.cost
 		results['time'] = end_time - start_time
-		results['count'] = generationCount
+		results['count'] = genCount
 		results['soln'] = bssf
 		results['max'] = None
 		results['total'] = None
 		results['pruned'] = None
 		return results
 
-	def nextGeneration(self):
-		self.sortPopulation()
-		selectionResults = self.selection()
-		children = self.breedPopulation(selectionResults)
-		nextGeneration = self.mutatePopulation(children)
-		return nextGeneration
-
 	def initialPopulation(self):
+		"""
+		Initializes the population using the greedy and random algorithms.
+		:return: the population (a list of possible routes)
+		"""
 		population = []
 		greedyResults = self.greedy()
 		population.append(greedyResults['soln'])
@@ -198,13 +198,36 @@ class TSPSolver:
 			population.append(results['soln'])
 		return population
 
+	def nextGeneration(self):
+		"""
+		Produces a new generation of population.
+		:return: a new population
+		"""
+		self.sortPopulation()
+		selectionResults = self.selection()
+		children = self.breedPopulation(selectionResults)
+		nextGeneration = self.mutatePopulation(children)
+		return nextGeneration
+
 	def sortPopulation(self):
+		"""
+		Sorts population in place based on fitness.
+		:return: None
+		"""
 		self.population.sort(key=self.getFitness, reverse=True)
 
 	def getFitness(self, individual):
+		"""
+		Key function for sorting individuals based on fitness
+		:return: fitness of the individual
+		"""
 		return individual.fitness
 
 	def selection(self):
+		"""
+		Selects parents for mating pool.
+		:return: list of selected parents for mating
+		"""
 		selectionResults = []
 		fitnessSum = sum(route.fitness for route in self.population)
 		interSums = [0]
@@ -221,7 +244,28 @@ class TSPSolver:
 					break
 		return selectionResults
 
+	def breedPopulation(self, matingpool):
+		"""
+		Create offspring population.
+		:return: new population containing new offspring
+		"""
+		children = []
+		length = len(matingpool) - self.eliteSize
+		pool = random.sample(matingpool, len(matingpool))
+
+		for i in range(self.eliteSize):
+			children.append(matingpool[i])
+
+		for i in range(length):
+			child = self.breed(pool[i], pool[len(matingpool) - i - 1])
+			children.append(child)
+		return children
+
 	def breed(self, parent1, parent2):
+		"""
+		Uses ordered crossover to create offspring.
+		:return: offspring that resulted from breeding
+		"""
 		child = []
 		childP1 = []
 		childP2 = []
@@ -240,20 +284,23 @@ class TSPSolver:
 		child = childP1 + childP2
 		return TSPSolution(child)
 
-	def breedPopulation(self, matingpool):
-		children = []
-		length = len(matingpool) - self.eliteSize
-		pool = random.sample(matingpool, len(matingpool))
+	def mutatePopulation(self, population):
+		"""
+		Mutates throughout new population.
+		:return: mutated population
+		"""
+		mutatedPop = []
 
-		for i in range(self.eliteSize):
-			children.append(matingpool[i])
-
-		for i in range(length):
-			child = self.breed(pool[i], pool[len(matingpool) - i - 1])
-			children.append(child)
-		return children
+		for ind in range(len(population)):
+			mutatedInd = self.mutate(population[ind])
+			mutatedPop.append(mutatedInd)
+		return mutatedPop
 
 	def mutate(self, individual):
+		"""
+		Uses swap mutation by swapping two cities in a route.
+		:return: a new route with mutation
+		"""
 		for swapped in range(len(individual.route)):
 			if random.random() < self.mutationRate:
 				swapWith = int(random.random() * len(individual.route))
@@ -265,11 +312,3 @@ class TSPSolver:
 				individual.route[swapped] = city1
 				individual.calculateCost()
 		return individual
-
-	def mutatePopulation(self, population):
-		mutatedPop = []
-
-		for ind in range(len(population)):
-			mutatedInd = self.mutate(population[ind])
-			mutatedPop.append(mutatedInd)
-		return mutatedPop
