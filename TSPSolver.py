@@ -191,8 +191,9 @@ class TSPSolver:
 
 	def initialPopulation(self, popSize):
 		population = []
-
-		for i in range(popSize):
+		greedyResults = self.greedy()
+		population.append(greedyResults['soln'])
+		for i in range(popSize - 1):
 			results = self.defaultRandomTour()
 			population.append(results['soln'])
 		return population
