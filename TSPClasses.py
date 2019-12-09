@@ -12,6 +12,7 @@ class TSPSolution:
 	def __init__( self, listOfCities):
 		self.route = listOfCities
 		self.cost = self._costOfRoute()
+		self.fitness = 1000.0 / float(self.cost)
 		#print( [c._index for c in listOfCities] )
 
 	def _costOfRoute( self ):
@@ -26,6 +27,10 @@ class TSPSolution:
 		cost += self.route[-1].costTo( self.route[0] )
 		#print('cost = ',cost)
 		return cost
+
+	def calculateCost(self):
+		self.cost = self._costOfRoute()
+		self.fitness = 1000.0 / float(self.cost)
 
 	def enumerateEdges( self ):
 		elist = []

@@ -22,6 +22,11 @@ import copy
 
 class TSPSolver:
 	def __init__( self, gui_view ):
+		self.populationSize = 100
+		self.eliteSize = 20
+		self.mutationRate = 0.01
+		self.generations = 2000
+		self.population = []
 		self._scenario = None
 
 	def setupWithScenario( self, scenario ):
@@ -148,10 +153,6 @@ class TSPSolver:
 		best solution found.  You may use the other three field however you like.
 		algorithm</returns> 
 	'''
-	populationSize = 100
-	eliteSize = 20
-	mutationRate = 0.01
-	generations = 2000
 
 	def fancy( self,time_allowance=60.0 ):
 		results = {}
@@ -159,18 +160,18 @@ class TSPSolver:
 		generationCount = 0
 
 		start_time = time.time()
-		population = self.initialPopulation(self.populationSize)
+		self.population = self.initialPopulation()
 
-		for i in range(0, self.generations):
-			population = self.nextGeneration(population, self.eliteSize, self.mutationRate)
+		for i in range(self.generations):
+			self.population = self.nextGeneration()
 			generationCount += 1
 			if time.time() - start_time > time_allowance:
 				break
 
 		end_time = time.time()
 
-		bssfIndex = self.rankRoutes(population)[0][0]
-		bssf = population[bssfIndex]
+		self.sortPopulation()
+		bssf = self.population[0]
 
 		results['cost'] = bssf.cost
 		results['time'] = end_time - start_time
@@ -181,56 +182,44 @@ class TSPSolver:
 		results['pruned'] = None
 		return results
 
-	def nextGeneration(self, currentGen, eliteSize, mutationRate):
-		popRanked = self.rankRoutes(currentGen)
-		selectionResults = self.selection(popRanked, eliteSize)
-		matingPool = self.matingPool(currentGen, selectionResults)
-		children = self.breedPopulation(matingPool, eliteSize)
-		nextGeneration = self.mutatePopulation(children, mutationRate)
+	def nextGeneration(self):
+		self.sortPopulation()
+		selectionResults = self.selection()
+		children = self.breedPopulation(selectionResults)
+		nextGeneration = self.mutatePopulation(children)
 		return nextGeneration
 
-	def initialPopulation(self, popSize):
+	def initialPopulation(self):
 		population = []
 		greedyResults = self.greedy()
 		population.append(greedyResults['soln'])
-		for i in range(popSize - 1):
+		for i in range(self.populationSize - 1):
 			results = self.defaultRandomTour()
 			population.append(results['soln'])
 		return population
 
+	def sortPopulation(self):
+		self.population.sort(key=self.getFitness, reverse=True)
+
 	def getFitness(self, individual):
-		return 1000.0 / float(individual.cost)
+		return individual.fitness
 
-	def rankRoutes(self, population):
-		fitnessResults = {}
-		for i in range(len(population)):
-			fitnessResults[i] = self.getFitness(population[i])
-		return sorted(fitnessResults.items(), key=operator.itemgetter(1), reverse=True)
-
-	def selection(self, popRanked, eliteSize):
+	def selection(self):
 		selectionResults = []
-		# I have doubts about the way they do this. It seems like, despite the complicated
-		# stuff they do, that the non-elite routes end up being selected completely randomly
-		df = pd.DataFrame(np.array(popRanked), columns=["Index", "Fitness"])
-		df['cum_sum'] = df.Fitness.cumsum()
-		df['cum_perc'] = 100 * df.cum_sum / df.Fitness.sum()
+		fitnessSum = sum(route.fitness for route in self.population)
+		interSums = [0]
+		for i in range(len(self.population)):
+			interSums.append(interSums[i] + self.population[i].fitness)
 
-		for i in range(0, eliteSize):
-			selectionResults.append(popRanked[i][0])
-		for i in range(0, len(popRanked) - eliteSize):
-			pick = 100 * random.random()
-			for i in range(0, len(popRanked)):
-				if pick <= df.iat[i, 3]:
-					selectionResults.append(popRanked[i][0])
+		for i in range(self.eliteSize):
+			selectionResults.append(self.population[i])
+		for i in range(len(self.population) - self.eliteSize):
+			pick = fitnessSum * random.random()
+			for i in range(len(self.population)):
+				if interSums[i] < pick <= interSums[i + 1]:
+					selectionResults.append(self.population[i])
 					break
 		return selectionResults
-
-	def matingPool(self, population, selectionResults):
-		matingPool = []
-		for i in range(len(selectionResults)):
-			index = selectionResults[i]
-			matingPool.append(population[index])
-		return matingPool
 
 	def breed(self, parent1, parent2):
 		child = []
@@ -251,22 +240,22 @@ class TSPSolver:
 		child = childP1 + childP2
 		return TSPSolution(child)
 
-	def breedPopulation(self, matingpool, eliteSize):
+	def breedPopulation(self, matingpool):
 		children = []
-		length = len(matingpool) - eliteSize
+		length = len(matingpool) - self.eliteSize
 		pool = random.sample(matingpool, len(matingpool))
 
-		for i in range(0, eliteSize):
+		for i in range(self.eliteSize):
 			children.append(matingpool[i])
 
-		for i in range(0, length):
+		for i in range(length):
 			child = self.breed(pool[i], pool[len(matingpool) - i - 1])
 			children.append(child)
 		return children
 
-	def mutate(self, individual, mutationRate):
+	def mutate(self, individual):
 		for swapped in range(len(individual.route)):
-			if (random.random() < mutationRate):
+			if random.random() < self.mutationRate:
 				swapWith = int(random.random() * len(individual.route))
 
 				city1 = individual.route[swapped]
@@ -274,13 +263,13 @@ class TSPSolver:
 
 				individual.route[swapped] = city2
 				individual.route[swapped] = city1
-				individual.cost = individual._costOfRoute()
+				individual.calculateCost()
 		return individual
 
-	def mutatePopulation(self, population, mutationRate):
+	def mutatePopulation(self, population):
 		mutatedPop = []
 
 		for ind in range(len(population)):
-			mutatedInd = self.mutate(population[ind], mutationRate)
+			mutatedInd = self.mutate(population[ind])
 			mutatedPop.append(mutatedInd)
 		return mutatedPop
