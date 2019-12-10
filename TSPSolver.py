@@ -264,9 +264,9 @@ class TSPSolver:
 			selectionResults.append(self.population[i])
 		for i in range(len(self.population) - self.eliteSize):
 			pick = fitnessSum * random.random()
-			for i in range(len(self.population)):
-				if interSums[i] < pick <= interSums[i + 1]:
-					selectionResults.append(self.population[i])
+			for j in range(len(self.population)):
+				if interSums[j] < pick <= interSums[j + 1]:
+					selectionResults.append(self.population[j])
 					break
 		return selectionResults
 
