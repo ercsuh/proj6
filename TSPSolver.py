@@ -17,8 +17,8 @@ from TSPClasses import *
 
 class TSPSolver:
 	def __init__( self, gui_view ):
-		self.populationSize = 100
-		self.eliteSize = 20
+		self.populationSize = 50
+		self.eliteSize = 10
 		self.mutationRate = 0.02
 		self.generations = 5000
 		self.population = []
