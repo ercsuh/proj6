@@ -15,6 +15,142 @@ import math
 from TSPClasses import *
 
 
+# min heap
+class Queue:
+	def __init__(self):
+		self.heap = []
+		self.size = 0
+
+	# add item to queue
+	def put(self, node):
+		# append to end
+		self.heap.append(node)
+		self.size += 1
+		# set i to index of appended node
+		i = len(self.heap) - 1
+		if i == 0:
+			return
+		# bubble down until parent is less than node
+		j = math.floor(i / 2) if i % 2 != 0 else math.floor(i / 2 - 1)
+		while self.heap[j].priority > self.heap[i].priority:
+			self.switch(i, j)
+			i = j
+			j = math.floor(i / 2) if i % 2 != 0 else math.floor(i / 2 - 1)
+			if j < 0:
+				return
+
+	# get min item from queue
+	def get(self):
+		# switch first and last items
+		self.switch(0, len(self.heap) - 1)
+		# remove and return the last item
+		min_node = self.heap.pop()
+		self.size -= 1
+		# bubble up first node until descendants are greater
+		i = 0
+		while True:
+			left = i * 2 + 1
+			right = i * 2 + 2
+			# account for the case where one or no descendants exist
+			if left >= len(self.heap):
+				break
+			if right >= len(self.heap):
+				if self.heap[left].priority < self.heap[i].priority:
+					self.switch(i, left)
+				break
+			# otherwise, pick the smallest descendant and switch
+			priority = self.heap[i].priority
+			left_priority = self.heap[left].priority
+			right_priority = self.heap[right].priority
+			min_child = i
+			if left_priority < priority and left_priority < right_priority:
+				min_child = left
+			elif right_priority < priority and right_priority <= left_priority:
+				min_child = right
+			else:
+				break
+			self.switch(i, min_child)
+			i = min_child
+		return min_node
+
+	# returns true if queue is empty
+	def empty(self):
+		return self.size == 0
+
+	# switches two nodes
+	def switch(self, i, j):
+		temp = self.heap[i]
+		self.heap[i] = self.heap[j]
+		self.heap[j] = temp
+
+
+# TSP node
+class Node:
+	def __init__(self, bound, path, rcm, ncities):
+		self.bound = bound
+		self.path = path
+		self.rcm = rcm
+		self.priority = np.inf
+		self.ncities = ncities
+
+	# copies node, appends city to new node, and calculates new lower bound
+	def expand(self, city):
+		# if there's no edge from last city in path to city, abort
+		source = self.path[-1]._index
+		dest = city._index
+		cost = self.rcm[source][dest]
+		if cost == np.inf:
+			return None
+		# copy node
+		node = Node(self.bound, self.path.copy(), np.copy(self.rcm), self.ncities)
+		# append city and calculate bound
+		node.append(city, source, dest, cost)
+		return node
+
+	# computes the queue priority of the node
+	def computePriority(self):
+		self.priority = self.bound - ((len(self.path)) * (len(self.path)) * 50)
+
+	# appends city to path and calculates new lower bound
+	def append(self, city, source, dest, cost):
+		# append new city
+		self.bound += cost
+		self.path.append(city)
+		# mark appropriate slots in rcm as infinity
+		for i in range(self.ncities):
+			self.rcm[i, dest] = np.inf
+		for j in range(self.ncities):
+			self.rcm[source, j] = np.inf
+		self.rcm[dest, source] = np.inf
+		# recalculate rcm and lower bound
+		self.computeBound()
+
+	# calculates rcm and adjusts the lower bound
+	def computeBound(self):
+		# take min of each row and subtract it across the row
+		minRows = np.min(self.rcm, axis=1)
+		for i in range(self.ncities):
+			if minRows[i] == np.inf:
+				continue
+			if minRows[i] == 0:
+				continue
+			for j in range(self.ncities):
+				self.rcm[i, j] -= minRows[i]
+			self.bound += minRows[i]
+		# take min of each column and subtract it across the column
+		minCols = np.min(self.rcm, axis=0)
+		for j in range(self.ncities):
+			if minCols[j] == np.inf:
+				continue
+			if minCols[j] == 0:
+				continue
+			for i in range(self.ncities):
+				self.rcm[i, j] -= minCols[j]
+			self.bound += minCols[j]
+		# compute queue priority with updated bound
+		self.computePriority()
+
+
 class TSPSolver:
 	def __init__( self, gui_view ):
 		self.populationSize = 50
@@ -138,7 +274,100 @@ class TSPSolver:
 	'''
 
 	def branchAndBound( self, time_allowance=60.0 ):
-		pass
+		results = {}
+		cities = self._scenario.getCities()
+		ncities = len(cities)
+		count = 0
+		max_q = 1
+		total = 0
+		pruned = 0
+		q = Queue()
+		bssf = None
+		minCost = np.inf
+
+		start_time = time.time()
+		# create initial cost matrix using graph
+		graphMatrix = np.ndarray((ncities, ncities), dtype=float)
+		for cityA in cities:
+			for cityB in cities:
+				graphMatrix[cityA._index, cityB._index] = cityA.costTo(cityB)
+
+		# create initial node with path of one city and initial rcm
+		initialPath = [cities[0]]
+		root = Node(0, initialPath, graphMatrix, ncities)
+		root.computeBound()
+		total += 1
+
+		# find a cycle using the greedy method for our bssf
+		greedyResults = self.greedy()
+		bssf = greedyResults['soln']
+		minCost = greedyResults['cost']
+
+		# if lower bound on initial node is worse than greedy, no use trying
+		if root.bound < minCost:
+			q.put(root)
+
+		# go until there are no nodes left or time runs out
+		while not q.empty():
+			if time.time() - start_time > time_allowance:
+				break
+			node = q.get()
+			# reject node if lower bound is worse than bssf
+			if node.bound >= minCost:
+				pruned += 1
+				continue
+			# if this is the last city in the cycle, do things differently
+			if len(node.path) == ncities - 1:
+				for city in cities:
+					if time.time() - start_time > time_allowance:
+						break
+					# don't try to add city if it's already in the path
+					if city in node.path:
+						continue
+					# expand node with city
+					newNode = node.expand(city)
+					# if there's no edge, abandon ship
+					if newNode is None:
+						continue
+					total += 1
+					# try solution and see if it's better than bssf
+					newSolution = TSPSolution(newNode.path)
+					if newSolution.cost < minCost:
+						bssf = newSolution
+						minCost = newSolution.cost
+						count += 1
+					else:
+						pruned += 1
+			# if this isn't the last city in the cycle, do the normal
+			else:
+				for city in cities:
+					if time.time() - start_time > time_allowance:
+						break
+					# don't try to add city if it's already in the path
+					if city in node.path:
+						continue
+					# expand node with city
+					newNode = node.expand(city)
+					# if there's no edge, abandon ship
+					if newNode is None:
+						continue
+					total += 1
+					# if new node's bound is less than bssf, add to queue
+					if newNode.bound < minCost:
+						q.put(newNode)
+						if q.size > max_q:
+							max_q = q.size
+					else:
+						pruned += 1
+		end_time = time.time()
+		results['cost'] = bssf.cost
+		results['time'] = end_time - start_time
+		results['count'] = count
+		results['soln'] = bssf
+		results['max'] = max_q
+		results['total'] = total
+		results['pruned'] = pruned
+		return results
 
 	''' <summary>
 		This is the entry point for the algorithm you'll write for your group project.
