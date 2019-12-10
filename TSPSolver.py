@@ -193,6 +193,10 @@ class TSPSolver:
 		return population
 
 	def getRandomRoute(self):
+		"""
+		Gets a random route faster than the default solver.
+		:return: a non-infinite cost random solution
+		"""
 		cities = self._scenario.getCities()
 		route = []
 		for startCity in cities:
@@ -219,7 +223,6 @@ class TSPSolver:
 			solution = TSPSolution(route)
 			if solution.cost != np.inf:
 				return solution
-
 
 	def nextGeneration(self):
 		"""
