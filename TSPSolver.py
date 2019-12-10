@@ -292,23 +292,40 @@ class TSPSolver:
 		Uses ordered crossover to create offspring.
 		:return: offspring that resulted from breeding
 		"""
-		child = []
-		childP1 = []
-		childP2 = []
+		for x in range(100):
+			child = []
 
-		geneA = int(random.random() * len(parent1.route))
-		geneB = int(random.random() * len(parent2.route))
+			geneA = int(random.random() * len(parent1.route))
+			geneB = int(random.random() * len(parent2.route))
 
-		startGene = min(geneA, geneB)
-		endGene = max(geneA, geneB)
+			startGene = min(geneA, geneB)
+			endGene = max(geneA, geneB)
 
-		for i in range(startGene, endGene):
-			childP1.append(parent1.route[i])
+			for i in range(startGene, endGene):
+				child.append(parent1.route[i])
 
-		childP2 = [item for item in parent2.route if item not in childP1]
+			routeFound = True
+			while len(child) < len(parent1.route):
+				childFound = False
+				for item in parent2.route:
+					if item not in child:
+						# check if there is a path from item to last element in childp1
+						if len(child) == 0:
+							child.append(item)
+							childFound = True
+						elif child[-1].costTo(item) != np.inf:
+							child.append(item)
+							childFound = True
+				if not childFound:
+					routeFound = False
+					break
+			if routeFound is False:
+				continue
+			else:
+				childSolution = TSPSolution(child)
+				return childSolution
+		return parent1
 
-		child = childP1 + childP2
-		return TSPSolution(child)
 
 	def mutatePopulation(self, children):
 		"""
