@@ -11,13 +11,8 @@ else:
 
 import time
 import numpy as np
-from TSPClasses import *
-import heapq
-import itertools
 import math
-import operator
-import pandas as pd
-import copy
+from TSPClasses import *
 
 
 class TSPSolver:
