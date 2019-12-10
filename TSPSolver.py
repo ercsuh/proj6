@@ -189,9 +189,37 @@ class TSPSolver:
 		greedyResults = self.greedy()
 		population.append(greedyResults['soln'])
 		for i in range(self.populationSize - 1):
-			results = self.defaultRandomTour()
-			population.append(results['soln'])
+			population.append(self.getRandomRoute())
 		return population
+
+	def getRandomRoute(self):
+		cities = self._scenario.getCities()
+		route = []
+		for startCity in cities:
+			route = [startCity]
+			for i in range(len(cities) - 1):
+				nextCityIndex = random.randint(1, len(cities) - 1)
+				firstNextCityIndex = nextCityIndex
+				nextCity = cities[nextCityIndex]
+				foundNextCity = True
+				while True:
+					if nextCity not in route and route[i].costTo(nextCity) != np.inf:
+						route.append(nextCity)
+						break
+					else:
+						nextCityIndex = (nextCityIndex + 1) % len(cities)
+						if nextCityIndex == firstNextCityIndex:
+							foundNextCity = False
+							break
+						nextCity = cities[nextCityIndex]
+				if not foundNextCity:
+					break
+			if len(route) < len(cities):
+				continue
+			solution = TSPSolution(route)
+			if solution.cost != np.inf:
+				return solution
+
 
 	def nextGeneration(self):
 		"""
