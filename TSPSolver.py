@@ -319,11 +319,14 @@ class TSPSolver:
 				if not childFound:
 					routeFound = False
 					break
-			if routeFound is False:
+
+			if not routeFound:
 				continue
 			else:
 				childSolution = TSPSolution(child)
-				return childSolution
+				if childSolution.cost != np.inf:
+					return childSolution
+
 		return parent1
 
 
